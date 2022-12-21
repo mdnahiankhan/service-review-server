@@ -18,32 +18,12 @@ app.use(express.json());
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.kzjjck3.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
-function verifyJwt(req, res, next) {
-    const autHeader = req.headers.authorization;
-    if (!authHeader) {
-        res.status(401).send({ message: 'UnAuthorized Access' })
-    }
-    const token = authHeader.spilt(' ')[1]
-    jwt.verify(token, process.env.ACCESS_TOKEN, function (err, decoded) {
-        if (err) {
-            res.status(401).send({ message: 'UnAuthorized Access' })
-        }
-        req.decoded = decoded;
-        next()
-    })
-}
 
 async function run() {
     try {
         const serviceCollection = client.db('makingmemories').collection('services');
-        const orderCollection = client.db('makingmemories').collection('orders')
-
-        app.post('/jwt', (req, res) => {
-            const user = req.body;
-            const token = jwt.sign(user, process.env.ACCESS_TOKEN, { expiresIn: '2d' })
-            res.send({ token })
-        })
-
+        const orderCollection = client.db('makingmemories').collection('orders');
+        const reviewCollection = client.db('makingmemories').collection('review');
 
         app.get('/services', async (req, res) => {
             const query = {}
@@ -59,12 +39,11 @@ async function run() {
         })
 
         // orders api
-        app.get('/orders', verifyJwt, async (req, res) => {
-            console.log(req.headers.authorization);
+        app.get('/orders', async (req, res) => {
             let query = {}
-            if (req.query.email) {
+            if (req.query?.email) {
                 query = {
-                    email: req.query.email
+                    email: req.query?.email
                 }
             }
             const cursor = orderCollection.find(query);
@@ -77,6 +56,28 @@ async function run() {
             const result = await orderCollection.insertOne(order)
             res.send(result);
         })
+
+
+        app.post('/review', async (req, res) => {
+            const review = req.body;
+            const result = await reviewCollection.insertOne(review);
+            res.send(result);
+        })
+        app.get('/review', async (req, res) => {
+            const query = {}
+            const cursor = reviewCollection.find(query)
+            const reviews = await cursor.toArray();
+            res.send(reviews)
+        })
+
+        app.delete('/review/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) }
+            const result = await reviewCollection.deleteOne(query)
+            res.send(result)
+        })
+
+
         app.patch('/orders/:id', async (req, res) => {
             const id = req.params.id;
             const status = req.body.status
